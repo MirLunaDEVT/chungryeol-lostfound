@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ShieldCheck, Lock, UserCheck, AlertCircle, ArrowRight, BookOpen } from "lucide-react";
+import { ShieldCheck, Lock, AlertCircle, ArrowRight, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { SCHOOL_CONFIG } from "@/lib/constants";
 
@@ -20,22 +20,11 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [demoUsers, setDemoUsers] = useState<any[]>([]);
-
   useEffect(() => {
     if (status === "authenticated") {
       router.push("/");
     }
   }, [status, router]);
-
-  useEffect(() => {
-    fetch("/api/auth/demo-users")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.users) setDemoUsers(data.users);
-      })
-      .catch((err) => console.error(err));
-  }, []);
 
   useEffect(() => {
     if (errorParam === "InvalidDomain") {
@@ -52,7 +41,7 @@ function LoginForm() {
   const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentNo || !password) {
-      setErrorMsg("학번과 비밀번호(초기 PIN: 1234)를 입력해주세요.");
+      setErrorMsg("학번과 비밀번호를 입력해주세요.");
       return;
     }
 
@@ -71,26 +60,6 @@ function LoginForm() {
       setLoading(false);
     } else {
       window.location.href = "/";
-    }
-  };
-
-  const handleDemoLogin = async (userId: string) => {
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const res = await signIn("demo-login", {
-        userId,
-        redirect: false,
-      });
-      if (res?.error) {
-        setErrorMsg("로그인 처리 실패: " + res.error);
-        setLoading(false);
-      } else {
-        window.location.href = "/";
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || "로그인 오류가 발생했습니다.");
-      setLoading(false);
     }
   };
 
@@ -249,37 +218,6 @@ function LoginForm() {
           </button>
         </form>
       )}
-
-      {/* 1클릭 테스트 데모 계정 선택 섹션 */}
-      <div className="pt-3 border-t border-slate-100">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
-            <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-            평가 및 테스트용 빠른 로그인
-          </span>
-          <span className="text-[10px] text-slate-400">클릭 즉시 접속</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-1.5">
-          {demoUsers.slice(0, 4).map((u) => (
-            <button
-              key={u.id}
-              onClick={() => handleDemoLogin(u.id)}
-              className="p-2 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 text-left transition-colors"
-            >
-              <div className="text-[11px] font-bold text-slate-800">
-                {u.name}{" "}
-                <span className="text-[9px] font-normal text-slate-500">
-                  ({u.role === "ADMIN" ? "교사" : `${u.grade}-${u.classNo}`})
-                </span>
-              </div>
-              <div className="text-[9px] text-slate-400">
-                {u.role === "ADMIN" ? "관리자 권한" : `학번: ${u.studentNoMasked}`}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* 하단 개인정보처리방침 안내 */}
       <div className="text-center pt-2">

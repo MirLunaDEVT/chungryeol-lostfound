@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Search, Bell, Shield, Sparkles, User as UserIcon } from "lucide-react";
-import DemoSwitcher from "./DemoSwitcher";
 import { SCHOOL_CONFIG } from "@/lib/constants";
 
 export default function Header() {
@@ -50,9 +49,8 @@ export default function Header() {
           </div>
         </Link>
 
-        {/* 우측 도구: 검색, 알림, 데모 스위처, 관리자/MY */}
+        {/* 우측 도구: 검색, 알림, 관리자/MY */}
         <div className="flex items-center gap-2 sm:gap-3">
-          <DemoSwitcher />
 
           <Link
             href="/search"

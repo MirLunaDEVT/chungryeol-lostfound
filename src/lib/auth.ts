@@ -6,7 +6,6 @@ import { SCHOOL_CONFIG } from "./constants";
 import { maskStudentNo, maskName } from "./security";
 import bcrypt from "bcryptjs";
 import { createAuditLog } from "./audit";
-
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || "chungryeol-lostfound-secret-key-2026!",
   session: {
@@ -134,36 +133,6 @@ export const authOptions: NextAuthOptions = {
           action: "LOGIN_SUCCESS",
           details: { method: "credentials" },
         });
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          studentNo: user.studentNo,
-          studentNoMasked: user.studentNoMasked,
-          grade: user.grade,
-          classNo: user.classNo,
-          role: user.role,
-          status: user.status,
-          returnedCount: user.returnedCount,
-          warningCount: user.warningCount,
-        };
-      },
-    }),
-
-    // 3. 로컬 데모 / 동아리 평가용 1클릭 간편 스위처 프로바이더
-    CredentialsProvider({
-      id: "demo-login",
-      name: "데모 간편 계정 선택",
-      credentials: {
-        userId: { label: "User ID", type: "text" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.userId) return null;
-        const user = await prisma.user.findUnique({
-          where: { id: credentials.userId },
-        });
-        if (!user) return null;
 
         return {
           id: user.id,
