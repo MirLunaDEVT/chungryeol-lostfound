@@ -67,8 +67,12 @@ function LoginForm() {
     <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8 space-y-6">
       {/* 학교 로고 & 타이틀 */}
       <div className="text-center space-y-2">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-lg flex items-center justify-center mx-auto shadow-lg shadow-blue-500/20">
-          충렬
+        <div className="w-16 h-16 rounded-full bg-white border border-slate-200 p-1 flex items-center justify-center mx-auto shadow-md overflow-hidden">
+          <img
+            src="/logo.png"
+            alt="충렬고등학교 로고"
+            className="w-full h-full object-contain"
+          />
         </div>
         <h1 className="text-2xl font-black tracking-tight text-slate-900">
           {SCHOOL_CONFIG.siteName}

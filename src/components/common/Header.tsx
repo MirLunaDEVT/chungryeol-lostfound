@@ -30,9 +30,13 @@ export default function Header() {
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm transition-all">
       <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
         {/* 로고 & 학교명 */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-black text-xs shadow-md group-hover:scale-105 transition-transform">
-            충렬
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center p-0.5 shadow-sm group-hover:scale-105 transition-transform overflow-hidden flex-shrink-0">
+            <img
+              src="/logo.png"
+              alt="충렬고등학교 로고"
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
             <div className="flex items-center gap-1.5">

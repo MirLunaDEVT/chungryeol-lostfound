@@ -8,7 +8,12 @@ export const metadata: Metadata = {
   title: "충렬고 분실물 찾기 | 충렬고등학교",
   description: "충렬고등학교 학생·교사 전용 교내 분실물 찾기 및 소통 플랫폼",
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/logo.png" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/logo.png",
+    apple: "/logo.png",
   },
 };
 
