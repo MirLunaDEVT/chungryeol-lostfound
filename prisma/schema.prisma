@@ -1,0 +1,274 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 1. 재학생/교직원 마스터 명단 (관리자가 CSV 업로드)
+model RosterEntry {
+  id           String    @id @default(cuid())
+  studentNo    String    @unique // e.g. "240101" 또는 교번 "T9901"
+  name         String    // 실명 e.g. "김철수"
+  grade        Int?      // 1, 2, 3 (교사는 null)
+  classNo      Int?      // 1~12
+  role         String    @default("STUDENT") // STUDENT, TEACHER, ADMIN
+  enrolled     Boolean   @default(true) // 재학/재직 여부 (false면 로그인 차단)
+  activatedAt  DateTime? // 최초 계정 연동 시각
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user         User?
+}
+
+// 2. 사용자 계정
+model User {
+  id                    String      @id @default(cuid())
+  email                 String?     @unique // 학교 구글 이메일 e.g. "240101@student.school.hs.kr"
+  googleSub             String?     @unique // 구글 OAuth 고유 ID
+  passwordHash          String?     // 학번 로그인용 해시 비밀번호 (bcrypt)
+  name                  String      // 표시 실명 e.g. "김민우"
+  studentNo             String      @unique // 학번 (6자리)
+  studentNoMasked       String      // 마스킹 표시용 (e.g. "2401**")
+  grade                 Int?
+  classNo               Int?
+  role                  String      @default("STUDENT") // STUDENT, TEACHER, ADMIN
+  status                String      @default("ACTIVE")  // PENDING_ONBOARDING, ACTIVE, SUSPENDED, GRADUATED
+  avatarUrl             String?
+  returnedCount         Int         @default(0) // 반환 성공 기여 횟수 (신뢰 지표)
+  warningCount          Int         @default(0) // 경고 횟수
+  suspendedReason       String?
+  lastPostedAt          DateTime?   // 작성 속도제한(Rate Limit) 체크용
+  todayPostCount        Int         @default(0)
+  lastBumpedAt          DateTime?
+  todayBumpCount        Int         @default(0)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  rosterEntry           RosterEntry? @relation(fields: [studentNo], references: [studentNo])
+  posts                 Post[]
+  comments              Comment[]
+  reactions             Reaction[]
+  claims                Claim[]
+  sentChats             ChatMessage[]
+  chatParticipants      ChatParticipant[]
+  keywordAlerts         KeywordAlert[]
+  notifications         Notification[]
+  reportsSubmitted      Report[]    @relation("ReportsSubmitted")
+  reportsReceived       Report[]    @relation("ReportsReceived")
+  auditLogs             AuditLog[]
+}
+
+// 3. 게시글 (분실물 / 습득물 / 커뮤니티 / 공지)
+model Post {
+  id                    String        @id @default(cuid())
+  authorId              String
+  type                  String        // LOST, FOUND, COMMUNITY, NOTICE
+  category              String        // e.g. "전자기기", "학생증/출입증", "의류/모자", "텀블러/식기", "필통/문구", "책/교재", "지갑/카드", "열쇠", "안경", "기타"
+  title                 String
+  body                  String
+  placeBuilding         String        // 건물 프리셋 e.g. "본관", "신관(도서관/특별실)", "체육관", "급식동", "운동장/스탠드", "정문/버스승강장"
+  placeDetail           String        // 상세 장소 e.g. "2층 2학년 3반 앞 복도"
+  occurredAt            DateTime      // 분실 또는 발견 시각
+  status                String        @default("OPEN") // OPEN, CLAIM_PENDING, READY_FOR_PICKUP, RETURNED, HIDDEN
+  isPinned              Boolean       @default(false)  // 관리자 피드 상단 고정 공지
+  viewCount             Int           @default(0)
+  bumpedAt              DateTime      @default(now())  // 끌어올리기 시각 (정렬 기준)
+  tags                  String?       // JSON 배열 문자열 (색상, 브랜드, 특징 키워드)
+  pickupPlace           String?       // 기본값: "본관 1층 학생안전복지부 분실물 보관함"
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  author                User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  images                PostImage[]
+  comments              Comment[]
+  reactions             Reaction[]
+  claims                Claim[]
+  chatRooms             ChatRoom[]
+  reports               Report[]
+
+  @@index([type, status, bumpedAt])
+  @@index([category])
+}
+
+model PostImage {
+  id        String   @id @default(cuid())
+  postId    String
+  url       String   // 내부 저장소 또는 서명된 이미지 경로
+  order     Int      @default(0) // 0번이 대표 썸네일
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+// 4. 댓글 및 목격 제보
+model Comment {
+  id           String    @id @default(cuid())
+  postId       String
+  authorId     String
+  content      String
+  isSighting   Boolean   @default(false) // "저도 여기서 봤어요!" 목격 제보 여부
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  post         Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author       User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reports      Report[]
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  type      String   // "HELPFUL"(도움돼요), "ME_TOO"(저도 봤어요)
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId, type])
+}
+
+// 5. 수령 신청 (클레임) - 허위 수령 원천 차단 모델
+model Claim {
+  id                String       @id @default(cuid())
+  postId            String
+  claimantId        String       // 수령 신청자 (분실자 주장)
+  status            String       @default("REQUESTED") // REQUESTED, NEED_INFO, APPROVED, REJECTED, CANCELLED
+  identifyingNotes  String       // 비공개 고유 특징 진술 (스티커, 안감색상, 스크래치 등)
+  visitTime         String?      // 방문 수령 희망 시간 (e.g. "오늘 점심시간 12:40")
+  pickupPlace       String?      // 수령 장소 (기본: 본관 1층 학생안전복지부)
+  adminNote         String?      // 교사/관리자 검토 메모
+  decidedById       String?      // 승인 또는 거절 처리자 (습득자 또는 교사/관리자)
+  decidedAt         DateTime?
+  handoverCompleted Boolean      @default(false) // 학생실 오프라인 인수인계 완료 여부
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  post              Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  claimant          User         @relation(fields: [claimantId], references: [id], onDelete: Cascade)
+}
+
+// 6. 게시글 기반 1:1 안전 채팅
+model ChatRoom {
+  id          String            @id @default(cuid())
+  postId      String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  post        Post              @relation(fields: [postId], references: [id], onDelete: Cascade)
+  participants ChatParticipant[]
+  messages    ChatMessage[]
+
+  @@index([postId])
+}
+
+model ChatParticipant {
+  id         String    @id @default(cuid())
+  chatRoomId String
+  userId     String
+  isBlocked  Boolean   @default(false)
+  joinedAt   DateTime  @default(now())
+
+  chatRoom   ChatRoom  @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatRoomId, userId])
+}
+
+model ChatMessage {
+  id          String    @id @default(cuid())
+  chatRoomId  String
+  senderId    String?   // null인 경우 시스템 알림 메시지 (e.g. "수령 신청이 승인되었습니다")
+  content     String
+  isSystem    Boolean   @default(false)
+  hasWarning  Boolean   @default(false) // 전화번호/외부링크 감지 플래그
+  createdAt   DateTime  @default(now())
+
+  chatRoom    ChatRoom  @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender      User?     @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  reports     Report[]
+}
+
+// 7. 키워드 알림 구독
+model KeywordAlert {
+  id        String   @id @default(cuid())
+  userId    String
+  keyword   String   // e.g. "에어팟", "민트색 지갑"
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([keyword])
+}
+
+// 8. 인앱 알림
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  link      String?  // 클릭 시 이동할 URL
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 9. 신고 관리 (악용 차단)
+model Report {
+  id            String       @id @default(cuid())
+  reporterId    String
+  targetType    String       // POST, COMMENT, CHAT_MESSAGE, USER
+  postId        String?
+  commentId     String?
+  chatMessageId String?
+  reportedUserId String?
+  reason        String       // "허위 게시", "장난/욕설", "사칭/개인정보", "중고거래 유도" 등
+  details       String?      // 부가 설명
+  status        String       @default("PENDING") // PENDING, REVIEWED_NO_ACTION, CONTENT_HIDDEN, USER_WARNED, USER_SUSPENDED
+  actionTaken   String?
+  resolvedAt    DateTime?
+  createdAt     DateTime     @default(now())
+
+  reporter      User         @relation("ReportsSubmitted", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser  User?        @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  post          Post?        @relation(fields: [postId], references: [id], onDelete: SetNull)
+  comment       Comment?     @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  chatMessage   ChatMessage? @relation(fields: [chatMessageId], references: [id], onDelete: SetNull)
+}
+
+// 10. 교내 분실물 보관함 (학생실 실물 수납 등록 현황)
+model SchoolLockerItem {
+  id          String    @id @default(cuid())
+  lockerCode  String    // e.g. "L-01", "L-02"
+  itemSummary String    // e.g. "삼성 갤럭시 버즈2 (보라색 케이스)"
+  intakeDate  DateTime  @default(now())
+  managedBy   String    // 담당 교사/관리자 이름
+  isReturned  Boolean   @default(false)
+  returnDate  DateTime?
+}
+
+// 11. 관리자 금칙어 사전
+model BannedWord {
+  id        String   @id @default(cuid())
+  word      String   @unique
+  createdAt DateTime @default(now())
+}
+
+// 12. 보안 감사 로그 (Audit Log)
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String   // "LOGIN_SUCCESS", "LOGIN_FAILED_DOMAIN", "POST_CREATED", "CLAIM_APPROVED", "USER_SUSPENDED" 등
+  ipAddress String?
+  userAgent String?
+  details   String?  // JSON 문자열
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+}
