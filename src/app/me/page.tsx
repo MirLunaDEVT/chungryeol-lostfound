@@ -16,6 +16,10 @@ import {
   PackageCheck,
   Clock,
   MapPin,
+  Key,
+  X,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import PostCard from "@/components/feed/PostCard";
 import { SCHOOL_CONFIG } from "@/lib/constants";
@@ -29,6 +33,52 @@ export default function MyPage() {
   const [myPosts, setMyPosts] = useState<any[]>([]);
   const [myReservations, setMyReservations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 비밀번호 변경 모달 상태
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwMsg, setPwMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 4) {
+      setPwMsg({ type: "error", text: "새 비밀번호는 최소 4자 이상이어야 합니다." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwMsg({ type: "error", text: "새 비밀번호가 서로 일치하지 않습니다." });
+      return;
+    }
+    setPwLoading(true);
+    setPwMsg(null);
+    try {
+      const res = await fetch("/api/me/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPwMsg({ type: "error", text: data.error || "비밀번호 변경에 실패했습니다." });
+      } else {
+        setPwMsg({ type: "success", text: "비밀번호가 성공적으로 변경되었습니다!" });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setTimeout(() => {
+          setShowPasswordModal(false);
+          setPwMsg(null);
+        }, 1200);
+      }
+    } catch {
+      setPwMsg({ type: "error", text: "서버 통신 오류가 발생했습니다." });
+    } finally {
+      setPwLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -148,6 +198,17 @@ export default function MyPage() {
             </Link>
           )}
 
+          <button
+            onClick={() => {
+              setPwMsg(null);
+              setShowPasswordModal(true);
+            }}
+            className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 hover:bg-emerald-50 text-xs font-bold text-slate-700 hover:text-emerald-700 transition-colors text-left"
+          >
+            <Key className="w-4 h-4 text-emerald-600" />
+            비밀번호 변경
+          </button>
+
           <Link
             href="/privacy"
             className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-600 transition-colors"
@@ -235,6 +296,100 @@ export default function MyPage() {
           ))
         )}
       </div>
+      {/* 비밀번호 변경 모달 */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <Key className="w-4 h-4 text-emerald-600" />
+                비밀번호 변경
+              </h2>
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {pwMsg && (
+              <div
+                className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                  pwMsg.type === "success"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-rose-50 text-rose-700 border border-rose-200"
+                }`}
+              >
+                {pwMsg.type === "success" ? (
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-600" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600" />
+                )}
+                <span>{pwMsg.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordChange} className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+                  현재 비밀번호 (초기: 1234)
+                </label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="현재 비밀번호 입력"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+                  새 비밀번호 (최소 4자 이상)
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="새 비밀번호 입력"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+                  새 비밀번호 확인
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="새 비밀번호 다시 입력"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={pwLoading}
+                  className="flex-1 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md transition-colors disabled:opacity-50"
+                >
+                  {pwLoading ? "변경 중..." : "변경 완료"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
