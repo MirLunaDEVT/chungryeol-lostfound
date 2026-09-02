@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
 
 export async function POST(req: Request) {
   try {
@@ -37,22 +34,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. 안전한 난수 기반 파일명 생성 (원본 파일명 및 경로 은닉)
+    // 3. Vercel 서버리스(읽기 전용 파일시스템) 호환 Base64 Data URL 변환
+    // 클라이언트에서 1200px 80%로 이미 최적화 압축되었으므로, DB에 안전하고 영구적으로 보존됩니다.
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-
-    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    const randomName = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}.${ext}`;
-
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    const filePath = path.join(uploadDir, randomName);
-    fs.writeFileSync(filePath, buffer);
-
-    const fileUrl = `/uploads/${randomName}`;
+    const mimeType = file.type || "image/jpeg";
+    const fileUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
 
     return NextResponse.json({ success: true, url: fileUrl });
   } catch (error) {
