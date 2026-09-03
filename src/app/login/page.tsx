@@ -20,6 +20,8 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [googleAvailable, setGoogleAvailable] = useState<boolean | null>(null);
+
   useEffect(() => {
     if (status === "authenticated") {
       router.push("/");
@@ -27,7 +29,27 @@ function LoginForm() {
   }, [status, router]);
 
   useEffect(() => {
-    if (errorParam === "InvalidDomain") {
+    fetch("/api/auth/providers")
+      .then((r) => r.json())
+      .then((providers) => {
+        const hasGoogle = !!providers?.google;
+        setGoogleAvailable(hasGoogle);
+        if (!hasGoogle) {
+          setActiveTab("STUDENT_NO");
+        }
+      })
+      .catch(() => setGoogleAvailable(false));
+  }, []);
+
+  useEffect(() => {
+    if (errorParam === "Configuration") {
+      setErrorMsg(
+        "Google 로그인(OAuth) 연동 키가 아직 서버에 등록되지 않았습니다. 상단의 [학번·명단 인증] 탭으로 로그인해 주세요."
+      );
+      setActiveTab("STUDENT_NO");
+    } else if (errorParam === "OAuthSignin" || errorParam === "OAuthCallback") {
+      setErrorMsg("구글 로그인 인증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    } else if (errorParam === "InvalidDomain") {
       setErrorMsg(
         `허용되지 않은 구글 계정입니다. 학교 이메일(${SCHOOL_CONFIG.allowedGoogleDomains.join(
           ", "
@@ -37,6 +59,17 @@ function LoginForm() {
       setErrorMsg("교내 규정 위반으로 계정이 일시 정지되었습니다. 학생실에 문의하세요.");
     }
   }, [errorParam]);
+
+  const handleGoogleLogin = () => {
+    if (googleAvailable === false) {
+      setErrorMsg(
+        "Google OAuth 연동 키가 서버에 등록되지 않았습니다. [학번·명단 인증] 탭으로 로그인해 주세요."
+      );
+      setActiveTab("STUDENT_NO");
+      return;
+    }
+    signIn("google", { callbackUrl: "/" });
+  };
 
   const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,8 +172,20 @@ function LoginForm() {
             </p>
           </div>
 
+          {googleAvailable === false && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                구글 로그인 설정 안내
+              </div>
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                현재 서버에 Google Cloud OAuth 키가 등록되지 않았습니다. 상단의 <strong>[학번·명단 인증]</strong> 탭을 누르시면 교직원/학생 계정으로 즉시 로그인하실 수 있습니다.
+              </p>
+            </div>
+          )}
+
           <button
-            onClick={() => signIn("google", { callbackUrl: "/" })}
+            onClick={handleGoogleLogin}
             disabled={loading}
             className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-sm border border-slate-300 shadow-sm transition-all active:scale-[0.99]"
           >
