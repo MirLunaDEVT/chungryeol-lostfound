@@ -26,8 +26,8 @@ export const authOptions: NextAuthOptions = {
             authorization: {
               params: {
                 prompt: "select_account",
-                // Google OAuth hd(hosted domain) 힌트 제공
-                hd: SCHOOL_CONFIG.allowedGoogleDomains[0] || undefined,
+                access_type: "online",
+                response_type: "code",
               },
             },
           }),

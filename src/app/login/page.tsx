@@ -51,16 +51,18 @@ function LoginForm() {
       setErrorMsg("구글 로그인 인증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
     } else if (errorParam === "InvalidDomain") {
       setErrorMsg(
-        `허용되지 않은 구글 계정입니다. 학교 이메일(${SCHOOL_CONFIG.allowedGoogleDomains.join(
+        `선택하신 계정은 학교 공식 계정이 아닙니다. 충렬고등학교 구글 계정(${SCHOOL_CONFIG.allowedGoogleDomains.join(
           ", "
-        )})로만 로그인할 수 있습니다.`
+        )})을 선택해 주세요. (구글 로그인 창에서 '다른 계정 사용' 클릭)`
       );
+      setActiveTab("GOOGLE");
     } else if (errorParam === "Suspended") {
       setErrorMsg("교내 규정 위반으로 계정이 일시 정지되었습니다. 학생실에 문의하세요.");
     }
   }, [errorParam]);
 
   const handleGoogleLogin = () => {
+    setErrorMsg(null);
     if (googleAvailable === false) {
       setErrorMsg(
         "Google OAuth 연동 키가 서버에 등록되지 않았습니다. [학번·명단 인증] 탭으로 로그인해 주세요."
