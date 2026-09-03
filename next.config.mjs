@@ -4,9 +4,7 @@ const getValidNextAuthUrl = () => {
   if (url && typeof url === "string" && url.trim().length > 0) {
     return url.trim();
   }
-  if (process.env.VERCEL_URL && process.env.VERCEL_URL.trim().length > 0) {
-    return `https://${process.env.VERCEL_URL.trim()}`;
-  }
+  // 구글 콘솔에 등록된 공식 고정 프로덕션 도메인 사용 (임의의 배포 해시 도메인 차단 방지)
   return "https://chungryeol-lostfound.vercel.app";
 };
 
