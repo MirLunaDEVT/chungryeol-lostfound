@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q") || "";
 
-    const roster = await prisma.rosterEntry.findMany({
+    const rosterList = await prisma.rosterEntry.findMany({
       where: q
         ? {
             OR: [
@@ -24,17 +24,20 @@ export async function GET(req: Request) {
             ],
           }
         : undefined,
-      include: {
-        user: {
-          select: {
-            id: true,
-            status: true,
-            email: true,
-          },
-        },
-      },
       orderBy: [{ grade: "asc" }, { classNo: "asc" }, { studentNo: "asc" }],
     });
+
+    const studentNos = rosterList.map((r) => r.studentNo);
+    const users = await prisma.user.findMany({
+      where: { studentNo: { in: studentNos } },
+      select: { id: true, studentNo: true, status: true, email: true },
+    });
+    const userMap = new Map(users.map((u) => [u.studentNo, u]));
+
+    const roster = rosterList.map((r) => ({
+      ...r,
+      user: userMap.get(r.studentNo) || null,
+    }));
 
     return NextResponse.json({ roster });
   } catch (error) {

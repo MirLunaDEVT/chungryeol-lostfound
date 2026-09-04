@@ -23,23 +23,19 @@ export const authOptions: NextAuthOptions = {
       name: "충렬고 학생 바로 입장",
       credentials: {},
       async authorize() {
-        let guestUser = await prisma.user.findFirst({
+        const guestUser = await prisma.user.upsert({
           where: { studentNo: "STUDENT" },
+          update: {},
+          create: {
+            studentNo: "STUDENT",
+            studentNoMasked: "충렬고 학생",
+            name: "충렬고 학생",
+            role: "STUDENT",
+            status: "ACTIVE",
+            returnedCount: 0,
+            warningCount: 0,
+          },
         });
-
-        if (!guestUser) {
-          guestUser = await prisma.user.create({
-            data: {
-              studentNo: "STUDENT",
-              studentNoMasked: "충렬고 학생",
-              name: "충렬고 학생",
-              role: "STUDENT",
-              status: "ACTIVE",
-              returnedCount: 0,
-              warningCount: 0,
-            },
-          });
-        }
 
         return {
           id: guestUser.id,

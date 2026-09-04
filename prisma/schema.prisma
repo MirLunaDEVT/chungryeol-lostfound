@@ -19,8 +19,6 @@ model RosterEntry {
   activatedAt  DateTime? // 최초 계정 연동 시각
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-
-  user         User?
 }
 
 // 2. 사용자 계정
@@ -47,7 +45,6 @@ model User {
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
 
-  rosterEntry           RosterEntry? @relation(fields: [studentNo], references: [studentNo])
   posts                 Post[]
   comments              Comment[]
   reactions             Reaction[]

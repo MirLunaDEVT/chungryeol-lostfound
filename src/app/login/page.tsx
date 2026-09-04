@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Lock, AlertCircle, ArrowRight, BookOpen, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Lock } from "lucide-react";
 import Link from "next/link";
 import { SCHOOL_CONFIG } from "@/lib/constants";
 
@@ -14,7 +14,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // 관리자 전용 폼 토글
+  // 관리자 폼 토글
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [adminId, setAdminId] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
@@ -25,7 +25,7 @@ function LoginForm() {
     }
   }, [status, router]);
 
-  // 학생 1클릭 바로 입장
+  // 학생 바로 입장 (1클릭)
   const handleStudentQuickLogin = async () => {
     setLoading(true);
     setErrorMsg(null);
@@ -38,7 +38,7 @@ function LoginForm() {
         window.location.href = "/";
       }
     } catch {
-      setErrorMsg("입장 중 오류가 발생했습니다.");
+      setErrorMsg("입장 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
       setLoading(false);
     }
   };
@@ -47,7 +47,7 @@ function LoginForm() {
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminId || !adminPassword) {
-      setErrorMsg("관리자 아이디와 비밀번호를 모두 입력해주세요.");
+      setErrorMsg("교번(ID)과 비밀번호를 모두 입력해주세요.");
       return;
     }
 
@@ -69,59 +69,54 @@ function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8 space-y-6">
-      {/* 학교 로고 & 타이틀 */}
-      <div className="text-center space-y-2">
-        <div className="w-16 h-16 rounded-full bg-white border border-slate-200 p-1 flex items-center justify-center mx-auto shadow-md overflow-hidden">
+    <div className="w-full max-w-[390px] bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8 space-y-6">
+      {/* 헤더 */}
+      <div className="text-center space-y-2.5">
+        <div className="w-14 h-14 rounded-full bg-white border border-slate-100 flex items-center justify-center mx-auto overflow-hidden shadow-xs">
           <img
             src="/logo.png"
             alt="충렬고등학교 로고"
             className="w-full h-full object-contain"
           />
         </div>
-        <h1 className="text-2xl font-black tracking-tight text-slate-900">
-          {SCHOOL_CONFIG.siteName}
-        </h1>
-        <p className="text-xs font-semibold text-blue-600 bg-blue-50 inline-block px-2.5 py-1 rounded-full border border-blue-200">
-          🏫 {SCHOOL_CONFIG.name} 구성원 전용
-        </p>
-        <p className="text-xs text-slate-500">
-          잃어버린 소지품을 쉽고 빠르게 찾는 교내 안전 플랫폼
-        </p>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">
+            {SCHOOL_CONFIG.siteName}
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            충렬고등학교 교내 분실물 확인 및 반환 서비스
+          </p>
+        </div>
       </div>
 
-      {/* 에러 메시지 알림 */}
+      {/* 에러 알림 */}
       {errorMsg && (
-        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-start gap-2 animate-in fade-in">
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-start gap-2 animate-in fade-in">
           <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* 1. 학생 로그인 섹션 (대형 버튼) */}
-      <div className="space-y-3 pt-2">
+      {/* 1. 학생 입장 버튼 (자연스럽고 신뢰감 있는 단색 버튼) */}
+      <div className="space-y-3 pt-1">
         <button
           onClick={handleStudentQuickLogin}
           disabled={loading}
-          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-base sm:text-lg shadow-xl shadow-blue-500/25 flex items-center justify-center gap-3 transition-all transform active:scale-[0.98] disabled:opacity-50"
+          className="w-full h-12 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm flex items-center justify-center transition-all disabled:opacity-50 active:scale-[0.99] cursor-pointer"
         >
-          <span>🎒</span>
-          <span>{loading ? "입장 처리 중..." : "충렬고 학생으로 바로 시작하기"}</span>
-          <ArrowRight className="w-5 h-5 ml-1" />
+          {loading ? "접속 중..." : "학생 바로 입장하기"}
         </button>
 
-        <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100 space-y-1">
-          <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            별도 계정 연동이나 회원가입 없이 즉시 이용
-          </div>
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            게시글을 작성할 때 <strong>본인의 학번과 실명</strong>을 정확하게 기재해 주시면 됩니다.
-          </p>
-        </div>
+        <p className="text-xs text-slate-500 text-center leading-relaxed">
+          별도 로그인 없이 바로 게시글을 확인하실 수 있습니다.
+          <br />
+          <span className="text-[11px] text-slate-400">
+            (게시글 작성 또는 수령 신청 시에만 학번·이름을 입력합니다)
+          </span>
+        </p>
       </div>
 
-      {/* 2. 관리자 로그인 섹션 (작고 깔끔하게) */}
+      {/* 2. 교직원/관리자 로그인 영역 (하단에 작고 단정하게 분리) */}
       <div className="pt-4 border-t border-slate-100 text-center">
         {!showAdminForm ? (
           <button
@@ -129,20 +124,19 @@ function LoginForm() {
               setErrorMsg(null);
               setShowAdminForm(true);
             }}
-            className="text-xs text-slate-400 hover:text-slate-600 transition-colors flex items-center justify-center gap-1.5 mx-auto py-1"
+            className="text-xs text-slate-400 hover:text-slate-600 transition-colors inline-flex items-center gap-1.5 py-1"
           >
-            <Lock className="w-3.5 h-3.5 text-slate-400" />
-            교직원 / 관리자 로그인
+            <Lock className="w-3.5 h-3.5" />
+            교직원 및 관리자 로그인
           </button>
         ) : (
           <form
             onSubmit={handleAdminLogin}
-            className="space-y-3 text-left p-4 bg-slate-50 rounded-2xl border border-slate-200 animate-in fade-in"
+            className="space-y-3 text-left p-4 bg-slate-50 rounded-xl border border-slate-200 animate-in fade-in"
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-blue-600" />
-                교직원 / 관리자 전용
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-700">
+                교직원 / 관리자 로그인
               </span>
               <button
                 type="button"
@@ -154,49 +148,48 @@ function LoginForm() {
             </div>
 
             <div>
-              <label className="text-[11px] font-bold text-slate-600 mb-1 block">
-                교번 / 관리자 ID
+              <label className="text-[11px] font-medium text-slate-600 mb-1 block">
+                아이디 (교번)
               </label>
               <input
                 type="text"
                 value={adminId}
                 onChange={(e) => setAdminId(e.target.value)}
                 placeholder="예: T9901"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:ring-1 focus:ring-slate-900 focus:outline-hidden"
               />
             </div>
 
             <div>
-              <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+              <label className="text-[11px] font-medium text-slate-600 mb-1 block">
                 비밀번호
               </label>
               <input
                 type="password"
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder="비밀번호 입력"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                placeholder="비밀번호"
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:ring-1 focus:ring-slate-900 focus:outline-hidden"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm transition-colors disabled:opacity-50"
+              className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg transition-colors disabled:opacity-50"
             >
-              {loading ? "확인 중..." : "관리자 로그인"}
+              {loading ? "확인 중..." : "로그인"}
             </button>
           </form>
         )}
       </div>
 
-      {/* 하단 개인정보처리방침 안내 */}
+      {/* 개인정보처리방침 링크 */}
       <div className="text-center pt-1">
         <Link
           href="/privacy"
-          className="text-[11px] text-slate-400 hover:text-slate-600 underline flex items-center justify-center gap-1"
+          className="text-[11px] text-slate-400 hover:text-slate-500 underline"
         >
-          <BookOpen className="w-3 h-3" />
           교내 개인정보 처리방침
         </Link>
       </div>
@@ -206,7 +199,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-[85vh] flex items-center justify-center p-4">
+    <div className="min-h-[80vh] flex items-center justify-center p-4">
       <Suspense fallback={<div className="text-slate-400 text-xs">화면 로딩 중...</div>}>
         <LoginForm />
       </Suspense>

@@ -61,7 +61,20 @@ async function main() {
     },
   });
 
-  console.log("✅ Production Database Initialized cleanly! 0 posts, 0 sample students, 1 master admin created.");
+  // 6. 충렬고 학생 1클릭 입장용 계정 생성
+  await prisma.user.create({
+    data: {
+      studentNo: "STUDENT",
+      studentNoMasked: "충렬고 학생",
+      name: "충렬고 학생",
+      role: "STUDENT",
+      status: "ACTIVE",
+      returnedCount: 0,
+      warningCount: 0,
+    },
+  });
+
+  console.log("✅ Production Database Initialized cleanly! 0 posts, 1 master admin, 1 student guest user created.");
 }
 
 main()
