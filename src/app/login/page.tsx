@@ -2,25 +2,22 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { signIn, useSession } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ShieldCheck, Lock, AlertCircle, ArrowRight, BookOpen } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Lock, AlertCircle, ArrowRight, BookOpen, ShieldCheck, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { SCHOOL_CONFIG } from "@/lib/constants";
 
 function LoginForm() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const errorParam = searchParams.get("error");
 
-  const [activeTab, setActiveTab] = useState<"GOOGLE" | "STUDENT_NO">("GOOGLE");
-  const [studentNo, setStudentNo] = useState("");
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [googleAvailable, setGoogleAvailable] = useState<boolean | null>(null);
+  // 관리자 전용 폼 토글
+  const [showAdminForm, setShowAdminForm] = useState(false);
+  const [adminId, setAdminId] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -28,55 +25,29 @@ function LoginForm() {
     }
   }, [status, router]);
 
-  useEffect(() => {
-    fetch("/api/auth/providers")
-      .then((r) => r.json())
-      .then((providers) => {
-        const hasGoogle = !!providers?.google;
-        setGoogleAvailable(hasGoogle);
-        if (!hasGoogle) {
-          setActiveTab("STUDENT_NO");
-        }
-      })
-      .catch(() => setGoogleAvailable(false));
-  }, []);
-
-  useEffect(() => {
-    if (errorParam === "Configuration") {
-      setErrorMsg(
-        "Google 로그인(OAuth) 연동 키가 아직 서버에 등록되지 않았습니다. 상단의 [학번·명단 인증] 탭으로 로그인해 주세요."
-      );
-      setActiveTab("STUDENT_NO");
-    } else if (errorParam === "OAuthSignin" || errorParam === "OAuthCallback") {
-      setErrorMsg("구글 로그인 인증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
-    } else if (errorParam === "InvalidDomain") {
-      setErrorMsg(
-        `선택하신 계정은 학교 공식 계정이 아닙니다. 충렬고등학교 구글 계정(${SCHOOL_CONFIG.allowedGoogleDomains.join(
-          ", "
-        )})을 선택해 주세요. (구글 로그인 창에서 '다른 계정 사용' 클릭)`
-      );
-      setActiveTab("GOOGLE");
-    } else if (errorParam === "Suspended") {
-      setErrorMsg("교내 규정 위반으로 계정이 일시 정지되었습니다. 학생실에 문의하세요.");
-    }
-  }, [errorParam]);
-
-  const handleGoogleLogin = () => {
+  // 학생 1클릭 바로 입장
+  const handleStudentQuickLogin = async () => {
+    setLoading(true);
     setErrorMsg(null);
-    if (googleAvailable === false) {
-      setErrorMsg(
-        "Google OAuth 연동 키가 서버에 등록되지 않았습니다. [학번·명단 인증] 탭으로 로그인해 주세요."
-      );
-      setActiveTab("STUDENT_NO");
-      return;
+    try {
+      const res = await signIn("student-quick", { redirect: false });
+      if (res?.error) {
+        setErrorMsg("입장 처리 실패: " + res.error);
+        setLoading(false);
+      } else {
+        window.location.href = "/";
+      }
+    } catch {
+      setErrorMsg("입장 중 오류가 발생했습니다.");
+      setLoading(false);
     }
-    signIn("google", { callbackUrl: "/" });
   };
 
-  const handleCredentialsLogin = async (e: React.FormEvent) => {
+  // 관리자/교직원 로그인
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentNo || !password) {
-      setErrorMsg("학번과 비밀번호를 입력해주세요.");
+    if (!adminId || !adminPassword) {
+      setErrorMsg("관리자 아이디와 비밀번호를 모두 입력해주세요.");
       return;
     }
 
@@ -84,9 +55,8 @@ function LoginForm() {
     setErrorMsg(null);
 
     const res = await signIn("credentials", {
-      studentNo,
-      name,
-      password,
+      studentNo: adminId.trim(),
+      password: adminPassword,
       redirect: false,
     });
 
@@ -94,7 +64,7 @@ function LoginForm() {
       setErrorMsg(res.error);
       setLoading(false);
     } else {
-      window.location.href = "/";
+      window.location.href = "/admin";
     }
   };
 
@@ -116,7 +86,7 @@ function LoginForm() {
           🏫 {SCHOOL_CONFIG.name} 구성원 전용
         </p>
         <p className="text-xs text-slate-500">
-          외부인·익명·장난 게시를 차단하는 교내 분실물 안전 플랫폼
+          잃어버린 소지품을 쉽고 빠르게 찾는 교내 안전 플랫폼
         </p>
       </div>
 
@@ -128,156 +98,106 @@ function LoginForm() {
         </div>
       )}
 
-      {/* 탭 전환: 구글 로그인 (기본) vs 학번 로그인 (보조) */}
-      <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl text-xs font-bold">
+      {/* 1. 학생 로그인 섹션 (대형 버튼) */}
+      <div className="space-y-3 pt-2">
         <button
-          onClick={() => {
-            setActiveTab("GOOGLE");
-            setErrorMsg(null);
-          }}
-          className={`py-2 rounded-lg transition-all ${
-            activeTab === "GOOGLE"
-              ? "bg-white text-blue-700 shadow-sm font-extrabold"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
+          onClick={handleStudentQuickLogin}
+          disabled={loading}
+          className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-base sm:text-lg shadow-xl shadow-blue-500/25 flex items-center justify-center gap-3 transition-all transform active:scale-[0.98] disabled:opacity-50"
         >
-          학교 구글 계정
+          <span>🎒</span>
+          <span>{loading ? "입장 처리 중..." : "충렬고 학생으로 바로 시작하기"}</span>
+          <ArrowRight className="w-5 h-5 ml-1" />
         </button>
-        <button
-          onClick={() => {
-            setActiveTab("STUDENT_NO");
-            setErrorMsg(null);
-          }}
-          className={`py-2 rounded-lg transition-all ${
-            activeTab === "STUDENT_NO"
-              ? "bg-white text-blue-700 shadow-sm font-extrabold"
-              : "text-slate-500 hover:text-slate-800"
-          }`}
-        >
-          학번·명단 인증
-        </button>
+
+        <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100 space-y-1">
+          <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            별도 계정 연동이나 회원가입 없이 즉시 이용
+          </div>
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            게시글을 작성할 때 <strong>본인의 학번과 실명</strong>을 정확하게 기재해 주시면 됩니다.
+          </p>
+        </div>
       </div>
 
-      {/* Tab 1: 구글 로그인 (기본 권장) */}
-      {activeTab === "GOOGLE" && (
-        <div className="space-y-4">
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs text-slate-600 space-y-1.5">
-            <div className="font-bold text-slate-800 flex items-center gap-1">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              학교 Google Workspace 연동
-            </div>
-            <p className="text-[11px] text-slate-500">
-              허용 도메인: <strong>{SCHOOL_CONFIG.allowedGoogleDomains.join(", ")}</strong>
-            </p>
-            <p className="text-[11px] text-slate-400">
-              개인 Gmail이나 외부 학교 계정은 접속이 원천 차단됩니다.
-            </p>
-          </div>
-
-          {googleAvailable === false && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
-              <div className="font-bold flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                구글 로그인 설정 안내
-              </div>
-              <p className="text-[11px] text-amber-700 leading-relaxed">
-                현재 서버에 Google Cloud OAuth 키가 등록되지 않았습니다. 상단의 <strong>[학번·명단 인증]</strong> 탭을 누르시면 교직원/학생 계정으로 즉시 로그인하실 수 있습니다.
-              </p>
-            </div>
-          )}
-
+      {/* 2. 관리자 로그인 섹션 (작고 깔끔하게) */}
+      <div className="pt-4 border-t border-slate-100 text-center">
+        {!showAdminForm ? (
           <button
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-sm border border-slate-300 shadow-sm transition-all active:scale-[0.99]"
+            onClick={() => {
+              setErrorMsg(null);
+              setShowAdminForm(true);
+            }}
+            className="text-xs text-slate-400 hover:text-slate-600 transition-colors flex items-center justify-center gap-1.5 mx-auto py-1"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
-              />
-            </svg>
-            학교 구글 계정으로 로그인
+            <Lock className="w-3.5 h-3.5 text-slate-400" />
+            교직원 / 관리자 로그인
           </button>
-        </div>
-      )}
-
-      {/* Tab 2: 학번 + 이름 인증 로그인 (보조) */}
-      {activeTab === "STUDENT_NO" && (
-        <form onSubmit={handleCredentialsLogin} className="space-y-3.5">
-          <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200 text-[11px] text-blue-900">
-            💡 관리자가 업로드한 <strong>재학생 명단</strong>과 대조 후 로그인됩니다. 최초 비밀번호(PIN)는 <strong>1234</strong> 입니다.
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              학번 (6자리)
-            </label>
-            <input
-              type="text"
-              value={studentNo}
-              onChange={(e) => setStudentNo(e.target.value)}
-              placeholder="예: 240101 (입학년도2+반2+번호2)"
-              className="w-full text-xs p-3 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              이름 (실명)
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="예: 김민우"
-              className="w-full text-xs p-3 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              비밀번호 (또는 초기 PIN)
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="초기값: 1234"
-              className="w-full text-xs p-3 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors"
+        ) : (
+          <form
+            onSubmit={handleAdminLogin}
+            className="space-y-3 text-left p-4 bg-slate-50 rounded-2xl border border-slate-200 animate-in fade-in"
           >
-            {loading ? "명단 확인 중..." : "학적 명단 대조 및 로그인"}
-          </button>
-        </form>
-      )}
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-blue-600" />
+                교직원 / 관리자 전용
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAdminForm(false)}
+                className="text-[11px] text-slate-400 hover:text-slate-600"
+              >
+                닫기
+              </button>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+                교번 / 관리자 ID
+              </label>
+              <input
+                type="text"
+                value={adminId}
+                onChange={(e) => setAdminId(e.target.value)}
+                placeholder="예: T9901"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+              />
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+                비밀번호
+              </label>
+              <input
+                type="password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                placeholder="비밀번호 입력"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl shadow-sm transition-colors disabled:opacity-50"
+            >
+              {loading ? "확인 중..." : "관리자 로그인"}
+            </button>
+          </form>
+        )}
+      </div>
 
       {/* 하단 개인정보처리방침 안내 */}
-      <div className="text-center pt-2">
+      <div className="text-center pt-1">
         <Link
           href="/privacy"
-          className="text-[11px] text-slate-500 hover:text-blue-600 underline flex items-center justify-center gap-1"
+          className="text-[11px] text-slate-400 hover:text-slate-600 underline flex items-center justify-center gap-1"
         >
           <BookOpen className="w-3 h-3" />
-          교내 개인정보 처리방침 확인하기
+          교내 개인정보 처리방침
         </Link>
       </div>
     </div>
@@ -287,7 +207,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <div className="min-h-[85vh] flex items-center justify-center p-4">
-      <Suspense fallback={<div className="text-slate-400 text-xs">로그인 화면 로딩 중...</div>}>
+      <Suspense fallback={<div className="text-slate-400 text-xs">화면 로딩 중...</div>}>
         <LoginForm />
       </Suspense>
     </div>

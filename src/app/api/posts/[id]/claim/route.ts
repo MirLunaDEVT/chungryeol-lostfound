@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { SCHOOL_CONFIG } from "@/lib/constants";
 import { createAuditLog } from "@/lib/audit";
-import { checkBannedWords, detectSensitiveContactPatterns } from "@/lib/security";
+import { checkBannedWords, detectSensitiveContactPatterns, maskStudentNo } from "@/lib/security";
 
 export async function GET(
   req: Request,
@@ -79,8 +79,48 @@ export async function POST(
       return NextResponse.json({ error: "글을 찾을 수 없습니다." }, { status: 404 });
     }
 
+    const { identifyingNotes, visitTime, pickupPlace, studentNo, name } = await req.json();
+
+    let claimantUserId = session?.user?.id;
+
+    if (session?.user?.role !== "ADMIN" && (studentNo || name)) {
+      const trimmedNo = (studentNo || "").trim();
+      const trimmedName = (name || "").trim();
+
+      if (trimmedNo && trimmedName) {
+        let claimantUser = await prisma.user.findUnique({
+          where: { studentNo: trimmedNo },
+        });
+
+        if (!claimantUser) {
+          let grade = null;
+          let classNo = null;
+          if (trimmedNo.length === 4) {
+            grade = parseInt(trimmedNo[0], 10);
+            classNo = parseInt(trimmedNo[1], 10);
+          }
+          claimantUser = await prisma.user.create({
+            data: {
+              studentNo: trimmedNo,
+              studentNoMasked: maskStudentNo(trimmedNo),
+              name: trimmedName,
+              grade,
+              classNo,
+              role: "STUDENT",
+              status: "ACTIVE",
+            },
+          });
+        }
+        claimantUserId = claimantUser.id;
+      }
+    }
+
+    if (!claimantUserId) {
+      return NextResponse.json({ error: "신청자의 학번과 실명을 입력해주세요." }, { status: 400 });
+    }
+
     // 악용 방지 1: 본인 글 셀프 수령 예약 차단
-    if (post.authorId === session.user.id) {
+    if (post.authorId === claimantUserId) {
       return NextResponse.json(
         { error: "본인이 등록한 글에는 수령 예약을 할 수 없습니다." },
         { status: 400 }
@@ -105,7 +145,7 @@ export async function POST(
     // 악용 방지 3: '알박기'(Reservation DoS) 방지 - 학생당 동시 활성 예약 최대 3건 제한
     const activeClaimsCount = await prisma.claim.count({
       where: {
-        claimantId: session.user.id,
+        claimantId: claimantUserId,
         status: "REQUESTED",
         post: { status: "RESERVED" },
       },
@@ -120,8 +160,6 @@ export async function POST(
         { status: 429 }
       );
     }
-
-    const { identifyingNotes, visitTime, pickupPlace } = await req.json();
 
     if (!identifyingNotes || identifyingNotes.trim().length < 5) {
       return NextResponse.json(
@@ -171,7 +209,7 @@ export async function POST(
         const claim = await tx.claim.create({
           data: {
             postId,
-            claimantId: session.user.id,
+            claimantId: claimantUserId,
             identifyingNotes: identifyingNotes.trim(),
             visitTime: reservationTime,
             pickupPlace: handoverPlace,
@@ -204,7 +242,7 @@ export async function POST(
 
     // 감사 로그 기록
     await createAuditLog({
-      userId: session.user.id,
+      userId: claimantUserId,
       action: "CLAIM_REQUESTED",
       details: {
         postId,

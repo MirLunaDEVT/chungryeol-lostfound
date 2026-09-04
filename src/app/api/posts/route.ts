@@ -6,6 +6,7 @@ import {
   checkBannedWords,
   checkPostRateLimit,
   detectSensitiveContactPatterns,
+  maskStudentNo,
 } from "@/lib/security";
 import { triggerKeywordAlerts } from "@/lib/matching";
 import { createAuditLog } from "@/lib/audit";
@@ -98,27 +99,6 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    });
-
-    if (!user || user.status !== "ACTIVE") {
-      return NextResponse.json(
-        { error: "활동 가능한 학생/교사 계정만 글을 작성할 수 있습니다." },
-        { status: 403 }
-      );
-    }
-
-    // 속도제한 (Rate limit) 검사 (10분 1회, 1일 5회)
-    const rateCheck = checkPostRateLimit(user);
-    if (!rateCheck.allowed) {
-      return NextResponse.json({ error: rateCheck.reason }, { status: 429 });
-    }
-
     const body = await req.json();
     const {
       type,
@@ -131,7 +111,91 @@ export async function POST(req: Request) {
       images, // string[] URLs
       tags,   // string[]
       isPinned,
+      studentNo, // 작성자 학번
+      name,      // 작성자 실명
     } = body;
+
+    let authorUser: any = null;
+
+    // 1. 관리자 계정 로그인 상태인 경우
+    if (session?.user?.role === "ADMIN" || session?.user?.role === "TEACHER") {
+      authorUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+      });
+      if (!authorUser) {
+        return NextResponse.json({ error: "관리자 계정을 찾을 수 없습니다." }, { status: 404 });
+      }
+    } else {
+      // 2. 학생 글 작성: 학번과 실명 필수 검증 (교내 안전 정책)
+      if (!studentNo || !name) {
+        return NextResponse.json(
+          { error: "게시글 작성을 위해 학번과 실명을 정확히 입력해주세요." },
+          { status: 400 }
+        );
+      }
+
+      const trimmedNo = studentNo.trim();
+      const trimmedName = name.trim();
+
+      if (!/^[0-9]{4,6}$/.test(trimmedNo)) {
+        return NextResponse.json(
+          { error: "학번은 4~6자리 숫자로 입력해주세요. (예: 3105)" },
+          { status: 400 }
+        );
+      }
+
+      if (trimmedName.length < 2) {
+        return NextResponse.json(
+          { error: "이름은 2글자 이상의 실명으로 입력해주세요." },
+          { status: 400 }
+        );
+      }
+
+      // 학번에 해당하는 User 조회 또는 생성
+      authorUser = await prisma.user.findUnique({
+        where: { studentNo: trimmedNo },
+      });
+
+      if (!authorUser) {
+        let grade = null;
+        let classNo = null;
+        if (trimmedNo.length === 4) {
+          grade = parseInt(trimmedNo[0], 10);
+          classNo = parseInt(trimmedNo[1], 10);
+        }
+        authorUser = await prisma.user.create({
+          data: {
+            studentNo: trimmedNo,
+            studentNoMasked: maskStudentNo(trimmedNo),
+            name: trimmedName,
+            grade,
+            classNo,
+            role: "STUDENT",
+            status: "ACTIVE",
+          },
+        });
+      } else {
+        if (authorUser.name !== trimmedName) {
+          authorUser = await prisma.user.update({
+            where: { id: authorUser.id },
+            data: { name: trimmedName },
+          });
+        }
+      }
+
+      if (authorUser.status === "SUSPENDED") {
+        return NextResponse.json(
+          { error: "해당 학번은 교내 운영 수칙 위반으로 게시글 작성이 일시 제한되었습니다." },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 속도제한 (Rate limit) 검사 (10분 1회, 1일 5회)
+    const rateCheck = checkPostRateLimit(authorUser);
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: rateCheck.reason }, { status: 429 });
+    }
 
     // 필수 항목 검증 (사진 1장 이상 필수 - 익명/장난 방지)
     if (!title || !content || !category || !placeBuilding || !type) {
@@ -173,12 +237,12 @@ export async function POST(req: Request) {
 
     // 관리자 공지 권한 검증
     const canPin =
-      isPinned && (user.role === "ADMIN" || user.role === "TEACHER");
+      isPinned && (authorUser.role === "ADMIN" || authorUser.role === "TEACHER");
 
     // 게시글 및 이미지 트랜잭션 생성
     const newPost = await prisma.post.create({
       data: {
-        authorId: user.id,
+        authorId: authorUser.id,
         type,
         category,
         title: title.trim(),
@@ -212,7 +276,7 @@ export async function POST(req: Request) {
 
     // 유저의 마지막 작성 시각 및 당일 카운트 업데이트
     await prisma.user.update({
-      where: { id: user.id },
+      where: { id: authorUser.id },
       data: {
         lastPostedAt: new Date(),
         todayPostCount: { increment: 1 },
@@ -228,12 +292,12 @@ export async function POST(req: Request) {
       placeBuilding: newPost.placeBuilding,
       tags: newPost.tags,
       type: newPost.type,
-      authorId: user.id,
+      authorId: authorUser.id,
     });
 
     // 감사 로그 기록
     await createAuditLog({
-      userId: user.id,
+      userId: authorUser.id,
       action: "POST_CREATED",
       details: {
         postId: newPost.id,

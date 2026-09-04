@@ -30,8 +30,19 @@ export default function ClaimModal({
   const [customTime, setCustomTime] = useState("");
   const [isCustom, setIsCustom] = useState(false);
   const [notes, setNotes] = useState("");
+  const [claimantStudentNo, setClaimantStudentNo] = useState("");
+  const [claimantName, setClaimantName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedNo = localStorage.getItem("chungryeol_student_no");
+      const savedName = localStorage.getItem("chungryeol_student_name");
+      if (savedNo) setClaimantStudentNo(savedNo);
+      if (savedName) setClaimantName(savedName);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -39,6 +50,16 @@ export default function ClaimModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!claimantStudentNo.trim() || !claimantName.trim()) {
+      setError("신청자의 학번과 실명을 정확히 입력해주세요.");
+      return;
+    }
+
+    if (!/^[0-9]{4,6}$/.test(claimantStudentNo.trim())) {
+      setError("학번은 4~6자리 숫자로 입력해주세요. (예: 3105)");
+      return;
+    }
 
     if (!finalVisitTime) {
       setError("학생실 방문 예정 시간을 선택하거나 입력해주세요.");
@@ -54,6 +75,11 @@ export default function ClaimModal({
     setError(null);
 
     try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("chungryeol_student_no", claimantStudentNo.trim());
+        localStorage.setItem("chungryeol_student_name", claimantName.trim());
+      }
+
       const res = await fetch(`/api/posts/${postId}/claim`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -61,6 +87,8 @@ export default function ClaimModal({
           identifyingNotes: notes.trim(),
           visitTime: finalVisitTime,
           pickupPlace: SCHOOL_CONFIG.defaultHandoverPlace,
+          studentNo: claimantStudentNo.trim(),
+          name: claimantName.trim(),
         }),
       });
       const data = await res.json();
@@ -122,6 +150,41 @@ export default function ClaimModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* 신청자 학번 & 실명 입력 */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+            <label className="block text-xs font-bold text-slate-700">
+              수령 신청자 정보 <span className="text-rose-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 mb-0.5 block">
+                  학번 (4자리)
+                </label>
+                <input
+                  type="text"
+                  value={claimantStudentNo}
+                  onChange={(e) => setClaimantStudentNo(e.target.value.trim())}
+                  placeholder="예: 3105"
+                  maxLength={6}
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 mb-0.5 block">
+                  이름 (실명)
+                </label>
+                <input
+                  type="text"
+                  value={claimantName}
+                  onChange={(e) => setClaimantName(e.target.value.trim())}
+                  placeholder="예: 홍길동"
+                  maxLength={10}
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* 1. 방문 시간 선택 */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1">

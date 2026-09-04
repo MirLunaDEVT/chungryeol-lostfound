@@ -25,6 +25,25 @@ export default function NewPostPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // 작성자 학번 및 실명 입력
+  const [authorStudentNo, setAuthorStudentNo] = useState("");
+  const [authorName, setAuthorName] = useState("");
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedNo = localStorage.getItem("chungryeol_student_no");
+      const savedName = localStorage.getItem("chungryeol_student_name");
+      if (savedNo) setAuthorStudentNo(savedNo);
+      if (savedName) setAuthorName(savedName);
+      if (!savedNo && session?.user?.studentNo && session.user.studentNo !== "STUDENT") {
+        setAuthorStudentNo(session.user.studentNo);
+      }
+      if (!savedName && session?.user?.name && session.user.name !== "충렬고 학생") {
+        setAuthorName(session.user.name);
+      }
+    }
+  }, [session]);
+
   // 태그 추가
   const handleAddTag = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === ",") {
@@ -85,6 +104,24 @@ export default function NewPostPage() {
   // 글 작성 제출
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "TEACHER";
+
+    if (!isAdmin) {
+      if (!authorStudentNo.trim() || !authorName.trim()) {
+        setErrorMsg("허위 게시 및 장난 방지를 위해 학번과 실명을 정확히 입력해주세요.");
+        return;
+      }
+      if (!/^[0-9]{4,6}$/.test(authorStudentNo.trim())) {
+        setErrorMsg("학번은 4~6자리 숫자로 입력해주세요. (예: 3105)");
+        return;
+      }
+      if (authorName.trim().length < 2) {
+        setErrorMsg("이름은 2글자 이상의 실명으로 입력해주세요.");
+        return;
+      }
+    }
+
     if (!title.trim() || !content.trim()) {
       setErrorMsg("제목과 내용을 모두 작성해주세요.");
       return;
@@ -111,12 +148,19 @@ export default function NewPostPage() {
           placeDetail: placeDetail.trim(),
           images,
           tags,
+          studentNo: authorStudentNo.trim(),
+          name: authorName.trim(),
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "글 등록 중 오류가 발생했습니다.");
+      }
+
+      if (typeof window !== "undefined") {
+        if (authorStudentNo.trim()) localStorage.setItem("chungryeol_student_no", authorStudentNo.trim());
+        if (authorName.trim()) localStorage.setItem("chungryeol_student_name", authorName.trim());
       }
 
       router.push(`/posts/${data.post.id}`);
@@ -160,7 +204,58 @@ export default function NewPostPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* 작성자 실명 & 학번 필수 확인 카드 */}
+          {session?.user?.role === "ADMIN" || session?.user?.role === "TEACHER" ? (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-2 text-xs font-bold text-amber-800">
+              <ShieldCheck className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <span>관리교사(관리자) 계정으로 등록 중입니다.</span>
+            </div>
+          ) : (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-600" />
+                  작성자 학번 및 실명 입력 (필수)
+                </span>
+                <span className="text-[10px] text-blue-700 font-bold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                  장난·허위 방지
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                안전한 물품 전달을 위해 학번과 실명을 정확히 적어주세요. 피드에는 개인정보 보호를 위해 <strong className="underline text-slate-800 font-bold">{authorStudentNo ? `${authorStudentNo.slice(0, 2)}**` : "31**"}</strong> 형태로 마스킹되어 안전하게 보호됩니다.
+              </p>
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                    학번 (4자리) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={authorStudentNo}
+                    onChange={(e) => setAuthorStudentNo(e.target.value.trim())}
+                    placeholder="예: 3105"
+                    maxLength={6}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-bold bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 mb-1 block">
+                    이름 (실명) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={authorName}
+                    onChange={(e) => setAuthorName(e.target.value.trim())}
+                    placeholder="예: 홍길동"
+                    maxLength={10}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-bold bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 1. 글 유형 선택 (3버튼) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
